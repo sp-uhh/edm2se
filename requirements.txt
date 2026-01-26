@@ -1,0 +1,16 @@
+torch
+torchaudio
+click
+psutil
+numpy>=2.0.0
+scipy
+tqdm
+soundfile
+einops
+tensorboard
+pesq
+Pillow
+diffusers==0.26.3
+accelerate==0.27.2
+omegaconf
+torchcodec
