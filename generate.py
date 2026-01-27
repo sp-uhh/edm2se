@@ -131,7 +131,7 @@ class StackedRandomGenerator:
 def generate(
     ckpt,                                     # Main network. Path, URL, or torch.nn.Module.
     audio_encoder     = None,                 # Instance of training.encoders.Encoder. None = load from network pickle.
-    outdir            = None,                 # Where to save the output images. None = do not save.
+    out_dir           = None,                 # Where to save the output images. None = do not save.
     seed              = 0,                    # Seed for the random number generator.
     test_dir          = None,                 # Path to the video (roi) directory.
     verbose           = False,                # Enable status prints?
@@ -221,9 +221,9 @@ def generate(
                     r.audio = audio_encoder.decode(latents[..., :og_spec_length])
 
                 # Save audio files.
-                if outdir is not None:
+                if out_dir is not None:
                     audio = r.audio.squeeze().cpu().numpy()[..., :y_len] * normfac.numpy()
-                    audio_path = r.cond_feats_path.replace(test_dir.rstrip('/'), outdir.rstrip('/'))
+                    audio_path = r.cond_feats_path.replace(test_dir.rstrip('/'), out_dir.rstrip('/'))
 
                     # Save audio file
                     os.makedirs(os.path.dirname(audio_path), exist_ok=True)
@@ -243,7 +243,7 @@ def generate(
 @click.command()
 @click.option('--ckpt',         help='Path to checkpoint',                   type=str,                   required=True)
 @click.option('--test_dir',     help='Path to the noisy speech dir',         type=str,                   required=True)
-@click.option('--outdir',       help='Where to save the enhanced files',     type=str,                   required=True)
+@click.option('--out_dir',      help='Where to save the enhanced files',     type=str,                   required=True)
 @click.option('--num_files',    help='Number of files to generate',          type=int,                   default=None)
 @click.option('--seed',         help='List of random seeds (e.g. 1,2,5-10)', type=click.IntRange(min=0), default=0)
 @click.option('--num_steps',    help='Number of sampling steps',             type=click.IntRange(min=1), default=50)
@@ -255,9 +255,9 @@ def cmdline(**opts):
     Example usage:
 
     python generate.py \
-        --net /path/to/checkpoint.ckpt \
+        --ckpt /path/to/checkpoint.ckpt \
         --test_dir=/path/to/noisy_dir \
-        --outdir=/path/to/enhanced_dir
+        --out_dir=/path/to/enhanced_dir
     """
     opts = dnnlib.EasyDict(opts)
 
