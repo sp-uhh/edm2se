@@ -1,8 +1,12 @@
 # EDM2SE
 
-**A Magnitude-Preserving Network Architecture for Diffusion-Based Speech Enhancement**
-
 This repository contains inference code for **EDM2SE**, a diffusion-based speech enhancement model with a magnitude-preserving network architecture.
+
+This code accompanies the paper:
+
+[Do We Need EMA for Diffusion-Based Speech Enhancement? Toward a Magnitude-Preserving Network Architecture](https://arxiv.org/abs/2505.05216
+
+If you use this code or build upon it in your work, please see the [**Citation**](#citation) section.
 
 The codebase is adapted from the official EDM2 implementation: https://github.com/NVlabs/edm2
 
@@ -61,7 +65,7 @@ python calculate_metrics.py \
 
 **Arguments:** 
 
-- `--proc_dir` Directory containing enhanced WA files
+- `--proc_dir` Directory containing enhanced WAV files
 - `--target_dir` Directory containing clean reference WAV files
 - `--results_dir` Output directory for CSV metric files
 - `--name` Run identifier used for naming result files
@@ -86,8 +90,17 @@ Training code and configuration files will be released **soon**.
 
 If you use this code or pretrained model in your work, please cite our ICASSP 2026 paper:
 
-> Julius Richter, Danilo de Oliveira, Timo Gerkmann.
-> *EDM2SE: A Magnitude-Preserving Network Architecture for Diffusion-Based Speech Enhancement.*
+> Richter, Julius, Danilo De Oliveira, and Timo Gerkmann.
+> "Do We Need EMA for Diffusion-Based Speech Enhancement? Toward a Magnitude-Preserving Network Architecture."
 > IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), 2026.
+
+```bib
+@inproceedings{richter2026edm2se,
+  title={Do We Need {EMA} for Diffusion-Based Speech Enhancement? Toward a Magnitude-Preserving Network Architecture},
+  author={Richter, Julius and de Oliveira, Danilo and Gerkmann, Timo},
+  booktitle={IEEE International Conference on Acoustics, Speech, and Signal Processing (ICASSP)},
+  year={2026}
+}
+```
 
 ------------------------------------------------------------------------
