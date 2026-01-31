@@ -4,9 +4,9 @@ This repository contains inference code for **EDM2SE**, a diffusion-based speech
 
 This code accompanies the paper:
 
-[Do We Need EMA for Diffusion-Based Speech Enhancement? Toward a Magnitude-Preserving Network Architecture](https://arxiv.org/abs/2505.05216
+[Do We Need EMA for Diffusion-Based Speech Enhancement? Toward a Magnitude-Preserving Network Architecture](https://arxiv.org/abs/2505.05216)
 
-If you use this code or build upon it in your work, please see the [**Citation**](#citation) section.
+If you use this code or build upon it in your work, please see the [Citation](#citation) section.
 
 The codebase is adapted from the official EDM2 implementation: https://github.com/NVlabs/edm2
 
