@@ -99,6 +99,15 @@ torchrun --standalone --nproc_per_node=2 train.py \
 - `--run_dir` Directory where training outputs (checkpoints, logs, and configuration files) are saved.
 - `--data`  Path to the training dataset directory.
 
+To compute `sigma_x` and `sigma_n` for the model, run:
+
+```bash
+python training/dataset_stats.py \
+    --data /path/to/data_dir
+```
+
+Make sure the project root is added to PYTHONPATH before running the script.
+
 ------------------------------------------------------------------------
 
 ## Citation
