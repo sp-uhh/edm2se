@@ -251,7 +251,6 @@ def generate(
 #----------------------------------------------------------------------------
 # Command line interface.
 
-# TODO: Add options for audio and video paths
 @click.command()
 @click.option('--net',          help='Path to checkpoint',                   type=str,                   required=True)
 @click.option('--test_dir',     help='Path to the noisy speech dir',         type=str,                   required=True)
