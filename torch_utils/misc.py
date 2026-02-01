@@ -13,6 +13,8 @@ import torch
 import warnings
 import dnnlib
 
+from contextlib import contextmanager
+
 #----------------------------------------------------------------------------
 # Re-seed torch & numpy random generators based on the given arguments.
 
@@ -125,7 +127,10 @@ class InfiniteSampler(torch.utils.data.Sampler):
         assert num_replicas > 0
         assert 0 <= rank < num_replicas
         warnings.filterwarnings('ignore', '`data_source` argument is not used and will be removed')
-        super().__init__(dataset)
+        try:
+            super().__init__(dataset)  # older torch
+        except TypeError:
+            super().__init__()         # newer torch
         self.dataset_size = len(dataset)
         self.start_idx = start_idx + rank
         self.stride = num_replicas
@@ -273,5 +278,45 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
 def tile_images(x, w, h):
     assert x.ndim == 4 # NCHW => CHW
     return x.reshape(h, w, *x.shape[1:]).permute(2, 0, 3, 1, 4).reshape(x.shape[1], h * x.shape[2], w * x.shape[3])
+
+#----------------------------------------------------------------------------
+
+@contextmanager
+def switch_backend(mode: str):
+    """
+    Temporarily switch PyTorch backend flags.
+
+    mode:
+        "train"  - conservative, reproducible training
+        "valid"  - fast inference / sampling
+    """
+    # Save current state
+    state = dict(
+        cudnn_benchmark=torch.backends.cudnn.benchmark,
+        cudnn_deterministic=torch.backends.cudnn.deterministic,
+        mm_tf32=torch.backends.cuda.matmul.allow_tf32,
+        cudnn_tf32=torch.backends.cudnn.allow_tf32,
+    )
+
+    try:
+        if mode == "train":
+            torch.backends.cudnn.benchmark = state["cudnn_benchmark"]
+            torch.backends.cudnn.deterministic = state["cudnn_deterministic"]
+            torch.backends.cuda.matmul.allow_tf32 = state["mm_tf32"]
+            torch.backends.cudnn.allow_tf32 = state["cudnn_tf32"]
+        elif mode == "valid":
+            torch.backends.cudnn.benchmark = False
+            torch.backends.cudnn.deterministic = False
+            torch.backends.cuda.matmul.allow_tf32 = False
+            torch.backends.cudnn.allow_tf32 = True
+        else:
+            raise ValueError(f"Unknown backend mode: {mode}")
+        yield
+    finally:
+        # Restore original state
+        torch.backends.cudnn.benchmark = state["cudnn_benchmark"]
+        torch.backends.cudnn.deterministic = state["cudnn_deterministic"]
+        torch.backends.cuda.matmul.allow_tf32 = state["mm_tf32"]
+        torch.backends.cudnn.allow_tf32 = state["cudnn_tf32"]
 
 #----------------------------------------------------------------------------

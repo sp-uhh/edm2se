@@ -134,10 +134,9 @@ class Block(torch.nn.Module):
         dropout                      = 0,        # Dropout probability.
         res_balance                  = 0.3,      # Balance between main branch (0) and residual branch (1).
         attn_balance                 = 0.3,      # Balance between main branch (0) and self-attention (1).
-        cond_balance                 = 0.3,      # Balance between main branch (0) and conditioning branch (1).
+        cond_balance                 = 0.5,      # Balance between main branch (0) and conditioning branch (1).
         clip_act                     = 256,      # Clip output activations. None = do not clip.
-        generative                   = True,     # Generative model (True) or predictive model (False)?
-        **discarded_kwargs,                            # Additional arguments for the Block class.
+        **discarded_kwargs,                      # Additional arguments for the Block class.
     ):
         super().__init__()
         self.out_channels = out_channels
@@ -150,10 +149,8 @@ class Block(torch.nn.Module):
         self.attn_balance = attn_balance
         self.clip_act = clip_act
         self.self_attention = self_attention
-        self.generative = generative
-        if generative:
-            self.emb_gain = torch.nn.Parameter(torch.zeros([]))
-            self.emb_linear = MPConv(emb_channels, out_channels, kernel=[])
+        self.emb_gain = torch.nn.Parameter(torch.zeros([]))
+        self.emb_linear = MPConv(emb_channels, out_channels, kernel=[])
         
         self.conv_res0 = MPConv(out_channels if flavor == 'enc' else in_channels, out_channels, kernel=[3,3])
         self.conv_res1 = MPConv(out_channels, out_channels, kernel=[3,3])
@@ -171,7 +168,6 @@ class Block(torch.nn.Module):
 
     def forward(self, x, emb, cond_feats=None):
         # Main branch.
-
         if cond_feats is not None:
             cond_feats = resample(cond_feats, f=self.resample_filter, mode=self.resample_mode)
             cond_feats = self.conv_cond(cond_feats)
@@ -186,9 +182,8 @@ class Block(torch.nn.Module):
 
         # Residual branch.
         y = self.conv_res0(mp_silu(x))
-        if self.generative:
-            c = self.emb_linear(emb, gain=self.emb_gain) + 1
-            y = y * c.unsqueeze(2).unsqueeze(3).to(y.dtype)
+        c = self.emb_linear(emb, gain=self.emb_gain) + 1
+        y = y * c.unsqueeze(2).unsqueeze(3).to(y.dtype)
         y = mp_silu(y)
         if self.training and self.dropout != 0:
             y = torch.nn.functional.dropout(y, p=self.dropout)
@@ -229,7 +224,6 @@ class UNet(torch.nn.Module):
         spec_channels,                            # Spectrogram channels.
         input_channels         = 4,               # Input channels.
         output_channels        = 2,               # Output channels.
-        embed_channels         = 0,               # Speaker embedding channels.
         cond_feat_channels     = 2,               # Video feature channels.
         model_channels         = 128,             # Base multiplier for the number of channels.
         channel_mult           = [1,1,2,2,2,2,2], # Per-resolution multipliers for the number of channels.
@@ -253,7 +247,6 @@ class UNet(torch.nn.Module):
         # Embedding.
         self.emb_fourier = MPFourier(cnoise)
         self.emb_noise = MPConv(cnoise, cemb, kernel=[])
-        self.emb_label = MPConv(embed_channels, cemb, kernel=[]) if embed_channels != 0 else None
 
         # Encoder.
         self.enc = torch.nn.ModuleDict()
@@ -332,11 +325,9 @@ class UNet(torch.nn.Module):
                     )
         self.out_conv = MPConv(cout, output_channels, kernel=[3,3])
 
-    def forward(self, x, noise_labels, spk_embed, cond_feats=None):
+    def forward(self, x, noise_labels, cond_feats=None):
         # Embedding.
         emb = self.emb_noise(self.emb_fourier(noise_labels))
-        if self.emb_label is not None:
-            emb = mp_sum(emb, self.emb_label(spk_embed * np.sqrt(spk_embed.shape[1])), t=self.label_balance)
         emb = mp_silu(emb)
         
         #-------------------------------------------------------------------
@@ -375,9 +366,8 @@ class EDM2SE(torch.nn.Module):
     def __init__(self,
         freq_resolution     = 256,   # Frequency resolution.
         spec_channels       = 2,     # Spectrogram channels.
-        embed_channels      = 0,     # Speaker embedding channels.
         cond_feat_channels  = 2,     # Video feature channels.
-        use_fp16            = True,  # Run the model at FP16 precision?
+        use_fp16            = False, # Run the model at FP16 precision?
         sigma_x             = 0.402, # Expected standard deviation of clean speech.
         sigma_n             = 0.342, # Expected standard deviation of environmental noise.
         T                   = 1.0,   # Final time step.
@@ -391,7 +381,6 @@ class EDM2SE(torch.nn.Module):
         super().__init__()
         self.freq_resolution = freq_resolution
         self.spec_channels = spec_channels
-        self.embed_channels = embed_channels
         self.cond_feat_channels = cond_feat_channels
         self.use_fp16 = use_fp16
         self.sigma_x = sigma_x
@@ -402,7 +391,6 @@ class EDM2SE(torch.nn.Module):
             spec_channels=spec_channels, 
             input_channels=spec_channels,     
             output_channels=spec_channels, 
-            embed_channels=embed_channels, 
             cond_feat_channels=cond_feat_channels,
             **unet_kwargs
             )
@@ -458,8 +446,11 @@ class EDM2SE(torch.nn.Module):
         if self.c_s == 1:
             w_x = self.w_x(t)
             w_y = self.w_y(t)
-            c_out = torch.sqrt((1 - w_x - w_y)**2 * self.sigma_x ** 2 + w_y ** 2 * self.sigma_n ** 2 + self.std(t) ** 2)
+            # Eq. 22
+            c_out = (torch.sqrt((1 - w_x - w_y)**2 * self.sigma_x ** 2 
+                        + w_y ** 2 * self.sigma_n ** 2 + self.std(t) ** 2))
         elif self.c_s == 0:
+            # Eq. 23
             c_out = self.sigma_x   
         else:
             raise ValueError(
@@ -471,14 +462,14 @@ class EDM2SE(torch.nn.Module):
     def c_in(self, t):
         w_x = self.w_x(t)
         w_y = self.w_y(t)
-        c_in = 1 / ((w_x + w_y) ** 2 * self.sigma_x ** 2 + w_y ** 2 * self.sigma_n ** 2 + self.std(t) ** 2)
+        # Eq. 20
+        c_in = (1 / ((w_x + w_y) ** 2 * self.sigma_x ** 2 + w_y ** 2 
+                    * self.sigma_n ** 2 + self.std(t) ** 2))
         return c_in
 
-    def forward(self, x, t, spk_embed=None, cond_feats=None, force_fp32=False, return_logvar=False, **unet_kwargs):
+    def forward(self, x, t, cond_feats=None, force_fp32=False, return_logvar=False, **unet_kwargs):
         x = x.to(torch.float32)
 
-        # Speaker embedding.
-        spk_embed = None if self.embed_channels == 0 else torch.zeros([1, self.embed_channels], device=x.device) if spk_embed is None else spk_embed.to(torch.float32).reshape(-1, self.embed_channels)
         dtype = torch.float16 if (self.use_fp16 and not force_fp32 and x.device.type == 'cuda') else torch.float32
 
         # Calculate noise standard deviation.
@@ -489,11 +480,10 @@ class EDM2SE(torch.nn.Module):
         # Input preconditioning.
         x_in = (self.c_in(t) * x).to(dtype)
         cond_feats = (self.c_in(T) * cond_feats).to(dtype) if cond_feats is not None else None
-        # cond_feats = cond_feats.to(dtype) if cond_feats is not None else None
         c_noise = sdt.flatten().log() / 4
 
         # Run the model.
-        F_x = self.unet(x_in, c_noise, spk_embed, cond_feats, **unet_kwargs)
+        F_x = self.unet(x_in, c_noise, cond_feats, **unet_kwargs)
 
         # Output preconditioning.
         D_x = self.c_skip(t) * x + self.c_out(t) * F_x.to(torch.float32)

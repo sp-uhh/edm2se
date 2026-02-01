@@ -27,8 +27,8 @@ from training.encoders import SpectrogramEncoder
 # SB-ODE sampler from the paper "Schrödinger bridge for generative speech enhancement"
 
 def sb_sampler(
-    net, noise, labels=None, cond=None, num_steps=50, t_eps=0.02, T=1, k=2.6, 
-    c=0.4, eps=1e-8, sampler="ode", **kwargs
+    net, noise, cond=None, num_steps=50, t_eps=0.02, T=1, k=2.6, c=0.4, 
+    eps=1e-8, sampler="ode", **kwargs
 ): 
     def alpha(t):
         alpha = torch.ones_like(t)
@@ -62,7 +62,7 @@ def sb_sampler(
         sigma_bar_cur = sigma_bar(t)
 
         # Run DNN
-        D = net(xt, time_prev, labels, cond)
+        D = net(xt, time_prev, cond)
 
         # Calculate scaling for the first-order discretization from the paper
         if sampler == "ode":
@@ -129,11 +129,11 @@ class StackedRandomGenerator:
 # Generate audio 
 
 def generate(
-    ckpt,                                     # Main network. Path, URL, or torch.nn.Module.
+    net,                                      # Main network. Path, or torch.nn.Module.
     audio_encoder     = None,                 # Instance of training.encoders.Encoder. None = load from network pickle.
     out_dir           = None,                 # Where to save the output images. None = do not save.
     seed              = 0,                    # Seed for the random number generator.
-    test_dir          = None,                 # Path to the video (roi) directory.
+    test_dir          = None,                 # Path to the noisy files.
     verbose           = False,                # Enable status prints?
     device            = torch.device('cuda'), # Which compute device to use.
     num_files         = None,                 # Number of files to generate.
@@ -141,14 +141,22 @@ def generate(
     **sampler_kwargs,                         # Additional arguments for the sampler function.
 ):
     # Build the model
-    net = EDM2SE()            
-    ckpt = torch.load(ckpt, map_location="cpu", weights_only=False)
-    net.load_state_dict(ckpt)
-    net = net.to(device)
-    net = net.float()
+    if isinstance(net, str):
+        assert os.path.isfile(net), f"Checkpoint not found: {net}"
+        ckpt = torch.load(net, map_location="cpu", weights_only=False)
+        net = EDM2SE()
+        net.load_state_dict(ckpt)
+        net = net.to(device)
+    elif isinstance(net, torch.nn.Module):
+        net = net.to(device)
+    else:
+        raise TypeError(
+            f"`net` must be a str (checkpoint path) or torch.nn.Module, got {type(net)}"
+        )
 
     # Build the audio encoder
-    audio_encoder = SpectrogramEncoder()
+    if audio_encoder is None:
+        audio_encoder = SpectrogramEncoder()
 
     # Retrieve the conditional audio paths
     cond_paths = sorted(glob(os.path.join(test_dir, '**', '*.wav'), recursive=True))
@@ -161,8 +169,12 @@ def generate(
     seeds = len(cond_paths) * [seed]
 
     # Divide seeds into batches.
-    num_batches = max((len(seeds) - 1) // dist.get_world_size() + 1, 1) * dist.get_world_size()
-    rank_batches = np.array_split(np.arange(len(seeds)), num_batches)[dist.get_rank() :: dist.get_world_size()]
+    if dist.get_world_size() == 1:
+        rank_batches = [i for i in range(len(seeds))]
+    else:
+        num_batches = max((len(seeds) - 1) // dist.get_world_size() + 1, 1) * dist.get_world_size()
+        rank_batches = np.array_split(np.arange(len(seeds)), num_batches)[dist.get_rank() :: dist.get_world_size()]
+
     if verbose:
         dist.print0(f'Generating {len(seeds)} audio signals...')
     
@@ -174,7 +186,7 @@ def generate(
         def __iter__(self):
             # Loop over batches.
             for batch_idx, idx in enumerate(rank_batches):
-                idx = idx.item()
+                idx = int(idx)
                 r = dnnlib.EasyDict(
                     audio=None, 
                     cond_feats=None,
@@ -241,7 +253,7 @@ def generate(
 
 # TODO: Add options for audio and video paths
 @click.command()
-@click.option('--ckpt',         help='Path to checkpoint',                   type=str,                   required=True)
+@click.option('--net',          help='Path to checkpoint',                   type=str,                   required=True)
 @click.option('--test_dir',     help='Path to the noisy speech dir',         type=str,                   required=True)
 @click.option('--out_dir',      help='Where to save the enhanced files',     type=str,                   required=True)
 @click.option('--num_files',    help='Number of files to generate',          type=int,                   default=None)
@@ -255,7 +267,7 @@ def cmdline(**opts):
     Example usage:
 
     python generate.py \
-        --ckpt /path/to/checkpoint.ckpt \
+        --net /path/to/checkpoint.ckpt \
         --test_dir=/path/to/noisy_dir \
         --out_dir=/path/to/enhanced_dir
     """
@@ -263,8 +275,8 @@ def cmdline(**opts):
 
     # Generate.
     dist.init()
-    image_iter = generate(**opts)
-    for _r in tqdm(image_iter, desc='Generating', total=len(image_iter)):
+    wav_iter = generate(**opts)
+    for _ in tqdm(wav_iter, desc='Generating', total=len(wav_iter)):
         pass
 
 #----------------------------------------------------------------------------

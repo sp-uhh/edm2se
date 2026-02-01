@@ -1,6 +1,6 @@
 # EDM2SE
 
-This repository contains inference code for **EDM2SE**, a diffusion-based speech enhancement model with a magnitude-preserving network architecture.
+This repository contains code for **EDM2SE**, a diffusion-based speech enhancement model with a magnitude-preserving network architecture.
 
 This code accompanies the paper:
 
@@ -38,14 +38,14 @@ https://www2.informatik.uni-hamburg.de/sp/audio/publications/icassp2026-edm2se/c
 
 ``` bash
 python generate.py \
-	--ckpt /path/to/checkpoint.ckpt \
+	--net /path/to/checkpoint.ckpt \
 	--test_dir /path/to/noisy_dir \
 	--out_dir /path/to/enhanced_dir
 ```
 
 **Arguments:** 
 
-- `--ckpt` Path to the pretrained EDM2SE checkpoint
+- `--net` Path to the pretrained EDM2SE checkpoint
 - `--test_dir` Directory containing noisy input WAV files
 - `--out_dir` Output directory for enhanced WAV files
 
@@ -77,12 +77,26 @@ The script saves a CSV file and prints mean scores to the terminal.
 ## Release Log
 
 -   **01/26/2026** --- Initial inference code release
+-   **01/23/2026** —-- Training code release 
 
 ------------------------------------------------------------------------
 
 ## Training Code
 
-Training code and configuration files will be released **soon**.
+The training code trains **EDM2SE** according to the standard recipe described in the paper.
+
+Training can be launched using distributed data parallelism. For example training EDM2SE using 2 GPUs:
+
+```bash
+torchrun --standalone --nproc_per_node=2 train.py \
+    --run_dir=/path/to/run_dir \
+    --data=/path/to/dataset
+```
+
+**Arguments:**
+
+- `--run_dir` Directory where training outputs (checkpoints, logs, and configuration files) are saved.
+- `--data`  Path to the training dataset directory.
 
 ------------------------------------------------------------------------
 
