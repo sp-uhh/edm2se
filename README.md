@@ -76,7 +76,7 @@ The script saves a CSV file and prints mean scores to the terminal.
 
 ## Release Log
 
--   **01/23/2026** --- Training code release 
+-   **01/31/2026** --- Training code release 
 -   **01/26/2026** --- Initial inference code release
 
 ------------------------------------------------------------------------
