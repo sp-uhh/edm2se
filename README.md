@@ -76,8 +76,8 @@ The script saves a CSV file and prints mean scores to the terminal.
 
 ## Release Log
 
+-   **01/23/2026** --- Training code release 
 -   **01/26/2026** --- Initial inference code release
--   **01/23/2026** —-- Training code release 
 
 ------------------------------------------------------------------------
 
@@ -95,6 +95,7 @@ torchrun --standalone --nproc_per_node=2 train.py \
 
 **Arguments:**
 
+- `--nproc_per_node=2` Number of processes to launch per node (usually equal to the number of GPUs).
 - `--run_dir` Directory where training outputs (checkpoints, logs, and configuration files) are saved.
 - `--data`  Path to the training dataset directory.
 
