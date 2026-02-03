@@ -333,8 +333,6 @@ def training_loop(
         # Save state checkpoint.
         if checkpoint_nwav is not None and (done or state.cur_nwav % checkpoint_nwav == 0) and state.cur_nwav != start_nwav:
             checkpoint.save(join(run_dir, f'training-state-{state.cur_nwav//1000:07d}.pt'))
-            # delete previous checkpoint
-            checkpoint.delete_first(run_dir)
             misc.check_ddp_consistency(net)
 
         # Done?
