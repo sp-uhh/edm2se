@@ -91,7 +91,7 @@ class EDM2SELoss:
         std = (self.alpha(t) * self.sigma_bar(t) * self.sigma(t)) / (self.sigma(self.T) + self.eps)
         return std
 
-    def __call__(self, net, audio, spkr_embeds=None, cond_feats=None):
+    def __call__(self, net, audio, cond_feats=None):
         t = torch.rand([audio.shape[0], 1, 1, 1], device=audio.device) * (self.T - self.t_eps) + self.t_eps
         B, C, F, T = audio.shape
         L = (F - 1) * self.audio_encoder.hop_length
@@ -116,7 +116,7 @@ class EDM2SELoss:
         noise = std * torch.randn_like(audio)
         
         # Compute loss in the time-frequency domain
-        denoised, logvar = net(mean + noise, t, spkr_embeds, cond_feats, return_logvar=True)
+        denoised, logvar = net(mean + noise, t, cond_feats, return_logvar=True)
         loss_tf = torch.mean((denoised - audio) ** 2, dim=(1, 2, 3)) 
 
         # Compute loss in the time domain
@@ -235,7 +235,7 @@ def training_loop(
     ema = dnnlib.util.construct_class_by_name(net=net, **ema_kwargs) if ema_kwargs is not None or 'L2Loss' not in loss_kwargs.class_name else None
 
     # Load previous checkpoint.
-    checkpoint = dist.CheckpointIO(state=state, net=net, loss_fn=loss_fn, optimizer=optimizer, ema=ema)
+    checkpoint = dist.CheckpointIO(state=state, net=net, optimizer=optimizer, ema=ema)
     checkpoint.load_latest(run_dir)
 
     # Decide when to stop.
@@ -353,7 +353,7 @@ def training_loop(
                 clean_audio = audio_encoder.encode(clean_audio.to(device))
                 noisy_audio = audio_encoder.encode(noisy_audio.to(device))
 
-                loss, loss_dict = loss_fn(net=ddp, audio=clean_audio, spkr_embeds=None, cond_feats=noisy_audio)
+                loss, loss_dict = loss_fn(net=ddp, audio=clean_audio, cond_feats=noisy_audio)
                 training_stats.report('Loss/loss', loss)
                 final_loss = loss.sum().mul(loss_scaling / batch_gpu_total)
                 final_loss.backward()
