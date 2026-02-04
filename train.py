@@ -26,8 +26,7 @@ import training.training_loop as training_loop
 config_presets = {
     'edm2se': dnnlib.EasyDict(
         duration=1024<<20, 
-        batch=32, 
-        batch_gpu=16,
+        batch=16, 
         ref_lr=2.5e-3,
         ref_batches=3e4,
         rampup_mwav=1,
